@@ -11,6 +11,7 @@ import static org.junit.Assert.assertThrows;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorage;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageImpl;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageItemInfo;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageOptions;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageOptions.MetricsSink;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageReadOptions;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageReadOptions.Fadvise;
@@ -37,9 +38,17 @@ public class GoogleCloudStorageGrpcIntegrationTest {
   private static final String BUCKET_NAME = BUCKET_HELPER.getUniqueBucketName("shared");
 
   private static GoogleCloudStorage createGoogleCloudStorage() throws IOException {
-    return new GoogleCloudStorageImpl(
-        GoogleCloudStorageTestHelper.getStandardOptionBuilder().setGrpcEnabled(true).build(),
-        GoogleCloudStorageTestHelper.getCredentials());
+    String storageServicePath = System.getenv("GCS_TEST_STORAGE_SERVICE_PATH");
+    String grpcServerAddress = System.getenv("GCS_TEST_GRPC_SERVER_ADDRESS");
+    String storageRootUrl = System.getenv("GCS_TEST_STORAGE_ROOT_URL");
+    System.err.println("Printing env vars " + storageServicePath + grpcServerAddress + storageRootUrl);
+    GoogleCloudStorageOptions.Builder optionsBuilder = GoogleCloudStorageTestHelper.getStandardOptionBuilder()
+        .setGrpcEnabled(true).setTrafficDirectorEnabled(true);
+    if (storageServicePath != null) optionsBuilder.setStorageServicePath(storageServicePath);
+    if (grpcServerAddress != null) optionsBuilder.setGrpcServerAddress(grpcServerAddress);
+    if (storageRootUrl != null) optionsBuilder.setStorageRootUrl(storageRootUrl);
+
+    return new GoogleCloudStorageImpl(optionsBuilder.build(), GoogleCloudStorageTestHelper.getCredentials());
   }
 
   private static GoogleCloudStorage createGoogleCloudStorage(
