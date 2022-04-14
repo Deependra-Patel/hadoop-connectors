@@ -1,5 +1,6 @@
 package com.google.cloud.hadoop.gcsio.integration;
 
+import static com.google.cloud.hadoop.gcsio.GoogleCloudStorageOptions.ENABLE_TRAFFIC_DIRECTOR_DEFAULT;
 import static com.google.cloud.hadoop.gcsio.integration.GoogleCloudStorageTestHelper.assertByteArrayEquals;
 import static com.google.cloud.hadoop.gcsio.integration.GoogleCloudStorageTestHelper.assertObjectContent;
 import static com.google.cloud.hadoop.gcsio.integration.GoogleCloudStorageTestHelper.writeObject;
@@ -20,6 +21,8 @@ import com.google.cloud.hadoop.gcsio.integration.GoogleCloudStorageTestHelper.Te
 import com.google.cloud.hadoop.util.AsyncWriteChannelOptions;
 import com.google.common.flogger.GoogleLogger;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SeekableByteChannel;
@@ -56,20 +59,23 @@ public class GoogleCloudStorageGrpcIntegrationTest {
     this.tdEnabled = tdEnabled;
   }
 
-  private static GoogleCloudStorageOptions.Builder configureDefaultOptions() {
+  private static GoogleCloudStorageOptions.Builder configureDefaultOptions(boolean tdEnabled)
+      throws MalformedURLException {
     GoogleCloudStorageOptions.Builder optionsBuilder =
         GoogleCloudStorageTestHelper.getStandardOptionBuilder().setGrpcEnabled(true);
     String grpcServerAddress = System.getenv("GCS_TEST_GRPC_SERVER_ADDRESS_OVERRIDE");
     if (grpcServerAddress != null) {
-      optionsBuilder.setGrpcServerAddress(grpcServerAddress);
-      logger.atInfo().log("Overriding gRPC server address to %s", grpcServerAddress);
+      // With TD we only need the host in the endpoint while gRPC-LB also need https and port
+      String overrideUrl = tdEnabled ? new URL(grpcServerAddress).getHost() : grpcServerAddress;
+      optionsBuilder.setGrpcServerAddress(overrideUrl);
+      logger.atInfo().log("Overriding gRPC server address to %s", overrideUrl);
     }
     return optionsBuilder;
   }
 
-  private GoogleCloudStorageOptions.Builder configureOptionsWithTD() {
+  private GoogleCloudStorageOptions.Builder configureOptionsWithTD() throws MalformedURLException {
     logger.atInfo().log("Creating client with tdEnabled %s", this.tdEnabled);
-    return configureDefaultOptions().setTrafficDirectorEnabled(this.tdEnabled);
+    return configureDefaultOptions(this.tdEnabled).setTrafficDirectorEnabled(this.tdEnabled);
   }
 
   private GoogleCloudStorage createGoogleCloudStorage() throws IOException {
@@ -88,7 +94,8 @@ public class GoogleCloudStorageGrpcIntegrationTest {
   public static void createBuckets() throws IOException {
     GoogleCloudStorage rawStorage =
         new GoogleCloudStorageImpl(
-            configureDefaultOptions().build(), GoogleCloudStorageTestHelper.getCredentials());
+            configureDefaultOptions(ENABLE_TRAFFIC_DIRECTOR_DEFAULT).build(),
+            GoogleCloudStorageTestHelper.getCredentials());
     rawStorage.createBucket(BUCKET_NAME);
   }
 
@@ -96,7 +103,8 @@ public class GoogleCloudStorageGrpcIntegrationTest {
   public static void cleanupBuckets() throws IOException {
     GoogleCloudStorage rawStorage =
         new GoogleCloudStorageImpl(
-            configureDefaultOptions().build(), GoogleCloudStorageTestHelper.getCredentials());
+            configureDefaultOptions(ENABLE_TRAFFIC_DIRECTOR_DEFAULT).build(),
+            GoogleCloudStorageTestHelper.getCredentials());
     BUCKET_HELPER.cleanup(rawStorage);
   }
 
